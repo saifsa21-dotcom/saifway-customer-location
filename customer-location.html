@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>مشاركة الموقع - SaifWay</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1115;
+    --card: #1a1d24;
+    --text: #f2f2f2;
+    --muted: #9aa0a8;
+    --primary: #4c8bf5;
+    --primary-text: #ffffff;
+    --error: #e5484d;
+    --success: #34c759;
+    --border: #2a2e37;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 8px;
+  }
+  p.subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 24px;
+    line-height: 1.6;
+  }
+  label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: var(--muted);
+  }
+  input[type="tel"] {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #11141a;
+    color: var(--text);
+    font-size: 16px;
+    margin-bottom: 18px;
+  }
+  input[type="tel"]:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 10px;
+    border: none;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+  #locationBtn {
+    background: #262a33;
+    color: var(--text);
+  }
+  #locationBtn.captured {
+    background: rgba(52, 199, 89, 0.15);
+    color: var(--success);
+    border: 1px solid var(--success);
+  }
+  #submitBtn {
+    background: var(--primary);
+    color: var(--primary-text);
+  }
+  #submitBtn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .status {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 4px;
+    min-height: 20px;
+  }
+  .status.error { color: var(--error); }
+  .status.success { color: var(--success); }
+  .hidden { display: none; }
+  .success-screen {
+    text-align: center;
+    padding: 12px 0;
+  }
+  .success-screen .icon {
+    font-size: 42px;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div id="invalidLinkScreen" class="hidden">
+      <h1>الرابط غير صالح</h1>
+      <p class="subtitle">هذا الرابط غير مكتمل أو غير صحيح. الرجاء التواصل مع مندوب التوصيل والحصول على رابط جديد.</p>
+    </div>
+
+    <div id="formScreen" class="hidden">
+      <h1>مشاركة الموقع</h1>
+      <p class="subtitle">هلا! لتسهيل توصيل طلبك، الرجاء مشاركة موقعك الحالي وتأكيد رقم هاتفك.</p>
+
+      <button type="button" id="locationBtn">📍 مشاركة موقعي الحالي</button>
+      <div id="locationStatus" class="status"></div>
+
+      <div style="height: 12px"></div>
+
+      <label for="phoneInput">رقم الهاتف الذي سجلت به الطلب</label>
+      <input type="tel" id="phoneInput" inputmode="tel" placeholder="07xxxxxxxxx" />
+
+      <button type="button" id="submitBtn" disabled>إرسال</button>
+      <div id="submitStatus" class="status"></div>
+    </div>
+
+    <div id="successScreen" class="hidden success-screen">
+      <div class="icon">✅</div>
+      <h1>تم الإرسال بنجاح</h1>
+      <p class="subtitle">شكراً لك، وصل موقعك ورقم هاتفك لمندوب التوصيل.</p>
+    </div>
+  </div>
+
+<script>
+  // Filled in at upload time from the same values already used by the Android app
+  // (local.properties SUPABASE_URL / SUPABASE_ANON_KEY). The anon key is meant to be
+  // public/client-exposed — it's protected by the customer_submissions RLS policies,
+  // not by secrecy.
+  const SUPABASE_URL = "https://mlybwpucfostseayhamr.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_F5aNyTKUnxV2huiiq7Tz2Q_deA5DyPc";
+
+  const invalidLinkScreen = document.getElementById("invalidLinkScreen");
+  const formScreen = document.getElementById("formScreen");
+  const successScreen = document.getElementById("successScreen");
+  const locationBtn = document.getElementById("locationBtn");
+  const locationStatus = document.getElementById("locationStatus");
+  const phoneInput = document.getElementById("phoneInput");
+  const submitBtn = document.getElementById("submitBtn");
+  const submitStatus = document.getElementById("submitStatus");
+
+  const stopId = new URLSearchParams(window.location.search).get("stop");
+  const isValidStopId = !!stopId && /^[0-9a-fA-F-]{20,50}$/.test(stopId);
+
+  let capturedLocation = null;
+
+  function updateSubmitEnabled() {
+    submitBtn.disabled = !(capturedLocation && phoneInput.value.trim().length >= 7);
+  }
+
+  if (!isValidStopId) {
+    invalidLinkScreen.classList.remove("hidden");
+  } else {
+    formScreen.classList.remove("hidden");
+
+    locationBtn.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        locationStatus.textContent = "المتصفح لا يدعم خدمة تحديد الموقع.";
+        locationStatus.className = "status error";
+        return;
+      }
+      locationStatus.textContent = "جارِ تحديد موقعك...";
+      locationStatus.className = "status";
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          capturedLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          locationBtn.textContent = "✅ تم تحديد الموقع";
+          locationBtn.classList.add("captured");
+          locationStatus.textContent = "";
+          updateSubmitEnabled();
+        },
+        (error) => {
+          locationStatus.textContent =
+            "تعذّر الوصول لموقعك. الرجاء تفعيل خدمة الموقع بالمتصفح والمحاولة مرة أخرى.";
+          locationStatus.className = "status error";
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    phoneInput.addEventListener("input", updateSubmitEnabled);
+
+    submitBtn.addEventListener("click", async () => {
+      if (!capturedLocation) return;
+      submitBtn.disabled = true;
+      submitStatus.textContent = "جارِ الإرسال...";
+      submitStatus.className = "status";
+
+      try {
+        const response = await fetch(
+          `${SUPABASE_URL}/rest/v1/customer_submissions?on_conflict=stop_id`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              Prefer: "resolution=merge-duplicates,return=minimal",
+            },
+            body: JSON.stringify({
+              stop_id: stopId,
+              phone: phoneInput.value.trim(),
+              latitude: capturedLocation.lat,
+              longitude: capturedLocation.lng,
+              submitted_at: new Date().toISOString(),
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        formScreen.classList.add("hidden");
+        successScreen.classList.remove("hidden");
+      } catch (err) {
+        submitStatus.textContent = "تعذّر الإرسال. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.";
+        submitStatus.className = "status error";
+        submitBtn.disabled = false;
+      }
+    });
+  }
+</script>
+</body>
+</html>
