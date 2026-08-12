@@ -232,12 +232,17 @@
         );
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          const bodyText = await response.text().catch(() => "");
+          throw new Error(`HTTP ${response.status}: ${bodyText}`);
         }
 
         formScreen.classList.add("hidden");
         successScreen.classList.remove("hidden");
       } catch (err) {
+        // Full detail goes to the console only — inspect via chrome://inspect over USB
+        // (desktop Chrome, phone in USB debugging mode) to see the real cause; the
+        // on-screen message stays generic/Arabic since customers can't act on the detail.
+        console.error("customer-location submit failed:", err);
         submitStatus.textContent = "تعذّر الإرسال. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.";
         submitStatus.className = "status error";
         submitBtn.disabled = false;
