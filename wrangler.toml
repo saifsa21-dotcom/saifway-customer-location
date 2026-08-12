@@ -1,0 +1,5 @@
+name = "saifway-customer-location"
+compatibility_date = "2026-08-12"
+
+[assets]
+directory = "./"
