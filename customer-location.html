@@ -210,30 +210,59 @@
       submitStatus.textContent = "جارِ الإرسال...";
       submitStatus.className = "status";
 
+      const payload = {
+        stop_id: stopId,
+        phone: phoneInput.value.trim(),
+        latitude: capturedLocation.lat,
+        longitude: capturedLocation.lng,
+        submitted_at: new Date().toISOString(),
+      };
+
       try {
-        const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/customer_submissions?on_conflict=stop_id`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-              Prefer: "resolution=merge-duplicates,return=minimal",
-            },
-            body: JSON.stringify({
-              stop_id: stopId,
-              phone: phoneInput.value.trim(),
-              latitude: capturedLocation.lat,
-              longitude: capturedLocation.lng,
-              submitted_at: new Date().toISOString(),
-            }),
-          }
-        );
+        // PostgREST's on_conflict upsert fails RLS on this table for the anon role
+        // (verified: plain INSERT and plain UPDATE each pass RLS individually, but
+        // INSERT ... ON CONFLICT DO UPDATE does not) — so instead of upserting, try a
+        // plain insert first and only fall back to a plain update on a real conflict.
+        let response = await fetch(`${SUPABASE_URL}/rest/v1/customer_submissions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify(payload),
+        });
 
         if (!response.ok) {
           const bodyText = await response.text().catch(() => "");
-          throw new Error(`HTTP ${response.status}: ${bodyText}`);
+          let code = null;
+          try {
+            code = JSON.parse(bodyText).code;
+          } catch (_) {}
+
+          if (code === "23505") {
+            const { stop_id, ...updatePayload } = payload;
+            response = await fetch(
+              `${SUPABASE_URL}/rest/v1/customer_submissions?stop_id=eq.${encodeURIComponent(stopId)}`,
+              {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  apikey: SUPABASE_ANON_KEY,
+                  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                  Prefer: "return=minimal",
+                },
+                body: JSON.stringify(updatePayload),
+              }
+            );
+            if (!response.ok) {
+              const updateBodyText = await response.text().catch(() => "");
+              throw new Error(`HTTP ${response.status}: ${updateBodyText}`);
+            }
+          } else {
+            throw new Error(`HTTP ${response.status}: ${bodyText}`);
+          }
         }
 
         formScreen.classList.add("hidden");
