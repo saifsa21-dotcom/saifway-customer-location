@@ -53,7 +53,7 @@
     margin-bottom: 6px;
     color: var(--muted);
   }
-  input[type="tel"] {
+  textarea {
     width: 100%;
     padding: 12px 14px;
     border-radius: 10px;
@@ -62,10 +62,15 @@
     color: var(--text);
     font-size: 16px;
     margin-bottom: 18px;
+    font-family: inherit;
+    resize: vertical;
   }
-  input[type="tel"]:focus {
+  textarea:focus {
     outline: none;
     border-color: var(--primary);
+  }
+  textarea::placeholder {
+    color: var(--muted);
   }
   button {
     width: 100%;
@@ -122,15 +127,15 @@
 
     <div id="formScreen" class="hidden">
       <h1>مشاركة الموقع</h1>
-      <p class="subtitle">هلا! لتسهيل توصيل طلبك، الرجاء مشاركة موقعك الحالي وتأكيد رقم هاتفك.</p>
+      <p class="subtitle">هلا! لتسهيل توصيل طلبك، الرجاء مشاركة موقعك الحالي.</p>
 
       <button type="button" id="locationBtn">📍 مشاركة موقعي الحالي</button>
       <div id="locationStatus" class="status"></div>
 
       <div style="height: 12px"></div>
 
-      <label for="phoneInput">رقم الهاتف الذي سجلت به الطلب</label>
-      <input type="tel" id="phoneInput" inputmode="tel" placeholder="07xxxxxxxxx" />
+      <label for="notesInput">ملاحظات (اختياري)</label>
+      <textarea id="notesInput" rows="3" placeholder="مثال: طابق 3، شقة 5، أو رقم هاتف بديل"></textarea>
 
       <button type="button" id="submitBtn" disabled>إرسال</button>
       <div id="submitStatus" class="status"></div>
@@ -139,7 +144,7 @@
     <div id="successScreen" class="hidden success-screen">
       <div class="icon">✅</div>
       <h1>تم الإرسال بنجاح</h1>
-      <p class="subtitle">شكراً لك، وصل موقعك ورقم هاتفك لمندوب التوصيل.</p>
+      <p class="subtitle">شكراً لك، وصل موقعك لمندوب التوصيل.</p>
     </div>
   </div>
 
@@ -156,7 +161,7 @@
   const successScreen = document.getElementById("successScreen");
   const locationBtn = document.getElementById("locationBtn");
   const locationStatus = document.getElementById("locationStatus");
-  const phoneInput = document.getElementById("phoneInput");
+  const notesInput = document.getElementById("notesInput");
   const submitBtn = document.getElementById("submitBtn");
   const submitStatus = document.getElementById("submitStatus");
 
@@ -166,7 +171,7 @@
   let capturedLocation = null;
 
   function updateSubmitEnabled() {
-    submitBtn.disabled = !(capturedLocation && phoneInput.value.trim().length >= 7);
+    submitBtn.disabled = !capturedLocation;
   }
 
   if (!isValidStopId) {
@@ -202,17 +207,16 @@
       );
     });
 
-    phoneInput.addEventListener("input", updateSubmitEnabled);
-
     submitBtn.addEventListener("click", async () => {
       if (!capturedLocation) return;
       submitBtn.disabled = true;
       submitStatus.textContent = "جارِ الإرسال...";
       submitStatus.className = "status";
 
+      const trimmedNotes = notesInput.value.trim();
       const payload = {
         stop_id: stopId,
-        phone: phoneInput.value.trim(),
+        notes: trimmedNotes ? trimmedNotes : null,
         latitude: capturedLocation.lat,
         longitude: capturedLocation.lng,
         submitted_at: new Date().toISOString(),
